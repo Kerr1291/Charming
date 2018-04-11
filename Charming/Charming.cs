@@ -32,7 +32,7 @@ namespace CharmingMod
 
             Log( this.GetType().Name +" initializing!");
 
-            //SetupDefaulSettings();
+            SetupDefaulSettings();
 
             UnRegisterCallbacks();
             RegisterCallbacks();

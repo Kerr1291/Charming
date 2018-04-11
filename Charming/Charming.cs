@@ -13,7 +13,7 @@ namespace CharmingMod
      * 
      */
     public partial class CharmingMod : Mod<SaveSettings, ModSettings>, ITogglableMod
-    {
+    {  
         public static CharmingMod Instance { get; private set; }
 
         CommunicationNode comms;

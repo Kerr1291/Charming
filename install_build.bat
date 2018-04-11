@@ -1,5 +1,5 @@
 @echo off
-SET DLL_SOURCE="..\ModCommon\bin\Debug\Charming.dll"
+SET DLL_SOURCE="..\ModCommon\bin\Debug\CharmingMod.dll"
 SET MOD_DEST="K:\Games\steamapps\common\Hollow Knight\hollow_knight_Data\Managed\Mods"
 echo Copying build from
 echo %DLL_SOURCE%

@@ -5,15 +5,16 @@ using ModCommon;
 
 namespace CharmingMod
 {
-    /*
+    using Components;
+    /* 
      * For a nicer building experience, change 
      * SET MOD_DEST="K:\Games\steamapps\common\Hollow Knight\hollow_knight_Data\Managed\Mods"
      * in install_build.bat to point to your hollow knight mods folder...
      * 
      */
-    public partial class ModCommon : Mod<SaveSettings, ModSettings>, ITogglableMod
+    public partial class CharmingMod : Mod<SaveSettings, ModSettings>, ITogglableMod
     {
-        public static ModCommon Instance { get; private set; }
+        public static CharmingMod Instance { get; private set; }
 
         CommunicationNode comms;
 
@@ -42,7 +43,7 @@ namespace CharmingMod
             string globalSettingsFilename = Application.persistentDataPath + ModHooks.PathSeperator + GetType().Name + ".GlobalSettings.json";
 
             bool forceReloadGlobalSettings = false;
-            if( GlobalSettings != null && GlobalSettings.SettingsVersion != ModCommonSettingsVars.GlobalSettingsVersion )
+            if( GlobalSettings != null && GlobalSettings.SettingsVersion != CharmingSettingsVars.GlobalSettingsVersion )
             {
                 forceReloadGlobalSettings = true;
             }
@@ -64,7 +65,7 @@ namespace CharmingMod
 
                 GlobalSettings.Reset();
 
-                GlobalSettings.SettingsVersion = ModCommonSettingsVars.GlobalSettingsVersion;
+                GlobalSettings.SettingsVersion = CharmingSettingsVars.GlobalSettingsVersion;
             }
 
             SaveGlobalSettings();
@@ -81,7 +82,7 @@ namespace CharmingMod
         //TODO: update when version checker is fixed in new modding API version
         public override string GetVersion()
         {
-            return ModCommonSettingsVars.ModCommonVersion;
+            return CharmingSettingsVars.ModVersion;
         }
 
         //TODO: update when version checker is fixed in new modding API version
@@ -96,6 +97,37 @@ namespace CharmingMod
 
         void UnRegisterCallbacks()
         {
+        }
+
+        static PhysicsMaterial2D hbMat;
+        static void DebugPrintObjectOnHit( Collider2D otherCollider, GameObject gameObject )
+        {
+            if( hbMat == null )
+            {
+                hbMat = new PhysicsMaterial2D( "hb" );
+                hbMat.bounciness = .6f;
+                hbMat.friction = .2f;
+            }
+
+            if( HeroController.instance.playerData.equippedCharm_15 )
+            {
+                Rigidbody2D body = otherCollider.GetComponentInParent<Rigidbody2D>();
+                if( body != null )
+                {
+                    Vector2 blowDirection = otherCollider.transform.position - HeroController.instance.transform.position;
+                    float blowPower = 40f;
+                    body.sharedMaterial = hbMat;
+                    body.velocity += blowDirection.normalized * blowPower;
+                    body.isKinematic = false;
+                    body.interpolation = RigidbodyInterpolation2D.Interpolate;
+                    body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+                    body.angularVelocity = 20f;
+                    body.gameObject.AddComponent<TakeDamageFromImpact>().blowVelocity = blowDirection.normalized * blowPower;
+                    body.gameObject.AddComponent<PreventOutOfBounds>();
+                    DamageEnemies dme = body.gameObject.AddComponent<DamageEnemies>();
+                    dme.damageDealt = (int)blowPower;
+                }
+            }
         }
     }
 }

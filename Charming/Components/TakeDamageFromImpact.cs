@@ -9,6 +9,7 @@ namespace CharmingMod.Components
 {
     public class TakeDamageFromImpact : MonoBehaviour
     {
+        public PhysicsMaterial2D oldMat;
         public Vector2 blowVelocity;
         HealthManager healthManager;
         Rigidbody2D body;
@@ -26,7 +27,10 @@ namespace CharmingMod.Components
             DamageEnemies dme = gameObject.AddComponent<DamageEnemies>();
             dme.damageDealt = (int)body.velocity.magnitude;
             if( blowVelocity.magnitude <= 0.1f )
+            {
+                body.sharedMaterial = oldMat;
                 Destroy( this );
+            }
         }
 
         void OnCollisionEnter2D( Collision2D collision )

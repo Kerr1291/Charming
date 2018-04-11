@@ -30,7 +30,7 @@ namespace CharmingMod
             comms = new CommunicationNode();
             comms.EnableNode( this );
 
-            Log("Mod Common initializing!");
+            Log( this.GetType().Name +" initializing!");
 
             SetupDefaulSettings();
 
@@ -102,13 +102,6 @@ namespace CharmingMod
         static PhysicsMaterial2D hbMat;
         static void DebugPrintObjectOnHit( Collider2D otherCollider, GameObject gameObject )
         {
-            if( hbMat == null )
-            {
-                hbMat = new PhysicsMaterial2D( "hb" );
-                hbMat.bounciness = .6f;
-                hbMat.friction = .2f;
-            }
-
             if( HeroController.instance.playerData.equippedCharm_15 )
             {
                 Rigidbody2D body = otherCollider.GetComponentInParent<Rigidbody2D>();
@@ -116,13 +109,24 @@ namespace CharmingMod
                 {
                     Vector2 blowDirection = otherCollider.transform.position - HeroController.instance.transform.position;
                     float blowPower = 40f;
+
+                    TakeDamageFromImpact dmgOnImpact = body.gameObject.AddComponent<TakeDamageFromImpact>();
+                    dmgOnImpact.blowVelocity = blowDirection.normalized * blowPower;
+                    dmgOnImpact.oldMat = body.sharedMaterial;
+
+                    if( hbMat == null )
+                    {
+                        hbMat = new PhysicsMaterial2D( "hb" );
+                        hbMat.bounciness = .6f;
+                        hbMat.friction = .2f;
+                    }
+
                     body.sharedMaterial = hbMat;
                     body.velocity += blowDirection.normalized * blowPower;
                     body.isKinematic = false;
                     body.interpolation = RigidbodyInterpolation2D.Interpolate;
                     body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
                     body.angularVelocity = 20f;
-                    body.gameObject.AddComponent<TakeDamageFromImpact>().blowVelocity = blowDirection.normalized * blowPower;
                     body.gameObject.AddComponent<PreventOutOfBounds>();
                     DamageEnemies dme = body.gameObject.AddComponent<DamageEnemies>();
                     dme.damageDealt = (int)blowPower;

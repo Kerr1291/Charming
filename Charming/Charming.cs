@@ -12,7 +12,7 @@ namespace CharmingMod
      * in install_build.bat to point to your hollow knight mods folder...
      * 
      */
-    public partial class CharmingMod : Mod<SaveSettings, ModSettings>, ITogglableMod
+    public partial class CharmingMod : Mod<CharmingModSaveSettings, CharmingModSettings>, ITogglableMod
     {  
         public static CharmingMod Instance { get; private set; }
 
@@ -32,10 +32,12 @@ namespace CharmingMod
 
             Log( this.GetType().Name +" initializing!");
 
-            SetupDefaulSettings();
+            //SetupDefaulSettings();
 
             UnRegisterCallbacks();
             RegisterCallbacks();
+
+            Log( this.GetType().Name + " is done initializing!" );
         }
 
         void SetupDefaulSettings()
@@ -69,6 +71,7 @@ namespace CharmingMod
             }
 
             SaveGlobalSettings();
+            Dev.Log( "Mod done setting initializing!" );
         }
 
         ///Revert all changes the mod has made
@@ -93,16 +96,29 @@ namespace CharmingMod
 
         void RegisterCallbacks()
         {
+            Dev.Where();
+            ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit; 
+            ModHooks.Instance.SlashHitHook += DebugPrintObjectOnHit;
         }
 
         void UnRegisterCallbacks()
         {
+            Dev.Where(); 
+            ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit;
         }
 
+        static string debugRecentHit = "";
         static PhysicsMaterial2D hbMat;
         static void DebugPrintObjectOnHit( Collider2D otherCollider, GameObject gameObject )
         {
-            if( HeroController.instance.playerData.equippedCharm_15 )
+            //Dev.Where();
+            if( otherCollider.gameObject.name != debugRecentHit )
+            {
+                //Dev.Log( "Hero at " + HeroController.instance.transform.position + " HIT: " + otherCollider.gameObject.name + " at (" + otherCollider.gameObject.transform.position + ")" );
+                debugRecentHit = otherCollider.gameObject.name;
+            }
+
+            if( true || HeroController.instance.playerData.equippedCharm_15 )
             {
                 Rigidbody2D body = otherCollider.GetComponentInParent<Rigidbody2D>();
                 if( body != null )

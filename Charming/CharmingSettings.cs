@@ -15,7 +15,7 @@ namespace CharmingMod
     }
 
     //Global (non-player specific) settings
-    public class ModSettings : IModSettings
+    public class CharmingModSettings : IModSettings
     {
         public void Reset()
         {
@@ -34,7 +34,7 @@ namespace CharmingMod
     }
 
     //Player specific settings
-    public class SaveSettings : IModSettings
+    public class CharmingModSaveSettings : IModSettings
     {
     }
 }

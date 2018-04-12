@@ -108,7 +108,7 @@ namespace CharmingMod
         }
 
         static string debugRecentHit = "";
-        static PhysicsMaterial2D hbMat;
+        //static PhysicsMaterial2D hbMat;
         static void DebugPrintObjectOnHit( Collider2D otherCollider, GameObject gameObject )
         {
             //Dev.Where();
@@ -117,37 +117,28 @@ namespace CharmingMod
                 //Dev.Log( "Hero at " + HeroController.instance.transform.position + " HIT: " + otherCollider.gameObject.name + " at (" + otherCollider.gameObject.transform.position + ")" );
                 debugRecentHit = otherCollider.gameObject.name;
             }
+            
+            if( !HeroController.instance.playerData.equippedCharm_15 )
+                return;
 
-            if( true || HeroController.instance.playerData.equippedCharm_15 )
-            {
-                Rigidbody2D body = otherCollider.GetComponentInParent<Rigidbody2D>();
-                if( body != null )
-                {
-                    Vector2 blowDirection = otherCollider.transform.position - HeroController.instance.transform.position;
-                    float blowPower = 40f;
+            Rigidbody2D body = otherCollider.GetComponentInParent<Rigidbody2D>();
+            bool isEnemy = otherCollider.gameObject.IsGameEnemy();
 
-                    TakeDamageFromImpact dmgOnImpact = body.gameObject.AddComponent<TakeDamageFromImpact>();
-                    dmgOnImpact.blowVelocity = blowDirection.normalized * blowPower;
-                    dmgOnImpact.oldMat = body.sharedMaterial;
+            if( body == null )
+                return;
 
-                    if( hbMat == null )
-                    {
-                        hbMat = new PhysicsMaterial2D( "hb" );
-                        hbMat.bounciness = .6f;
-                        hbMat.friction = .2f;
-                    }
+            if( !isEnemy )
+                return;
 
-                    body.sharedMaterial = hbMat;
-                    body.velocity += blowDirection.normalized * blowPower;
-                    body.isKinematic = false;
-                    body.interpolation = RigidbodyInterpolation2D.Interpolate;
-                    body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-                    body.angularVelocity = 20f;
-                    body.gameObject.AddComponent<PreventOutOfBounds>();
-                    DamageEnemies dme = body.gameObject.AddComponent<DamageEnemies>();
-                    dme.damageDealt = (int)blowPower;
-                }
-            }
+            TakeDamageFromImpact dmgOnImpact = body.gameObject.GetOrAddComponent<TakeDamageFromImpact>();
+            PreventOutOfBounds poob = body.gameObject.GetOrAddComponent<PreventOutOfBounds>();
+            DamageEnemies dmgEnemies = body.gameObject.GetOrAddComponent<DamageEnemies>();
+
+            Vector2 blowDirection = otherCollider.transform.position - HeroController.instance.transform.position;
+            float blowPower = 40f;
+
+            dmgOnImpact.blowVelocity = blowDirection.normalized * blowPower;            
+            dmgEnemies.damageDealt = (int)blowPower;
         }
     }
 }

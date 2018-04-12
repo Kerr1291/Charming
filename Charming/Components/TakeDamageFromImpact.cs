@@ -9,37 +9,66 @@ namespace CharmingMod.Components
 {
     public class TakeDamageFromImpact : MonoBehaviour
     {
-        public PhysicsMaterial2D oldMat;
+        public PreventOutOfBounds poob;
         public Vector2 blowVelocity;
         HealthManager healthManager;
         Rigidbody2D body;
+        int oldLayer;
+        bool reflectedThisFrame;
+
         void OnEnable()
         {
+            oldLayer = gameObject.layer;
             healthManager = GetComponent<HealthManager>();
             body = GetComponent<Rigidbody2D>();
+            poob = GetComponent<PreventOutOfBounds>();
+
+            poob.onBoundCollision -= OnBoundsCollision;
+            poob.onBoundCollision += OnBoundsCollision;
+        }
+
+        private void OnDisable()
+        {
+            poob.onBoundCollision -= OnBoundsCollision;
         }
 
         void FixedUpdate()
         {
             body.position += blowVelocity * Time.fixedDeltaTime;
-            body.rotation += 100f * .955f * Time.fixedDeltaTime;
-            blowVelocity = blowVelocity * .995f;
-            DamageEnemies dme = gameObject.AddComponent<DamageEnemies>();
-            dme.damageDealt = (int)body.velocity.magnitude;
+            body.rotation += 100f * .985f * Time.fixedDeltaTime;
+
+            blowVelocity = blowVelocity * .985f;
+
             if( blowVelocity.magnitude <= 0.1f )
             {
-                body.sharedMaterial = oldMat;
+                transform.rotation = Quaternion.identity;
+                gameObject.layer = oldLayer;
                 Destroy( this );
             }
         }
 
+        private void LateUpdate()
+        {
+            reflectedThisFrame = false;
+        }
+
+        void OnBoundsCollision(RaycastHit2D ray, GameObject self, GameObject other)
+        {
+            OnCollision( other, ray.normal );
+        }
+
         void OnCollisionEnter2D( Collision2D collision )
+        {
+            OnCollision( collision.gameObject, collision.contacts[ 0 ].normal );
+        }
+
+        void OnCollision( GameObject other, Vector3 normal )
         {
             HitInstance hit = new HitInstance()
             {
                 AttackType = AttackTypes.Splatter,
                 CircleDirection = false,
-                DamageDealt = (int)(blowVelocity.magnitude * 2f),
+                DamageDealt = (int)(blowVelocity.magnitude),
                 Direction = 0f,
                 IgnoreInvulnerable = false,
                 IsExtraDamage = false,
@@ -51,27 +80,27 @@ namespace CharmingMod.Components
                 SpecialType = SpecialTypes.None
             };
 
-            if( collision.gameObject.layer == 8 )
+            if( other.layer == 8 )
             {
                 healthManager.Hit( hit );
-                blowVelocity = collision.contacts[ 0 ].normal * blowVelocity.magnitude;
+                if(!reflectedThisFrame )
+                    blowVelocity = normal * blowVelocity.magnitude;
+                reflectedThisFrame = true;
             }
 
-            if( collision.gameObject.layer == 11 )
-            {
-                gameObject.layer = 13;
-                Rigidbody2D rb = collision.gameObject.GetComponent<Rigidbody2D>();
-                if( rb != null )
-                {
-                    blowVelocity = collision.contacts[ 0 ].normal * blowVelocity.magnitude;
-                    collision.gameObject.AddComponent<TakeDamageFromImpact>().blowVelocity = blowVelocity * 2f;
-                    collision.gameObject.AddComponent<PreventOutOfBounds>();
-                    DamageEnemies dme = collision.gameObject.AddComponent<DamageEnemies>();
-                    dme.damageDealt = (int)blowVelocity.magnitude;
-                    //rb.velocity += body.velocity;
-                    healthManager.Hit( hit );
-                }
-            }
+            //if( other.layer == 11 )
+            //{
+            //    Rigidbody2D rb = other.GetComponent<Rigidbody2D>();
+            //    if( rb != null )
+            //    {
+            //        blowVelocity = normal * blowVelocity.magnitude;
+            //        other.GetOrAddComponent<TakeDamageFromImpact>().blowVelocity = blowVelocity;
+            //        other.GetOrAddComponent<PreventOutOfBounds>();
+            //        DamageEnemies dme = other.GetOrAddComponent<DamageEnemies>();
+            //        dme.damageDealt = (int)blowVelocity.magnitude;
+            //        healthManager.Hit( hit );
+            //    }
+            //}
         }
     }
 }

@@ -114,19 +114,21 @@ namespace CharmingMod
             //Dev.Where();
             if( otherCollider.gameObject.name != debugRecentHit )
             {
-                //Dev.Log( "Hero at " + HeroController.instance.transform.position + " HIT: " + otherCollider.gameObject.name + " at (" + otherCollider.gameObject.transform.position + ")" );
+                //Dev.Log( "Hero at " + HeroController.instance.transform.position + " HIT: " + otherCollider.gameObject.name + " at (" + otherCollider.gameObject.transform.position + ")" + " with layer (" + otherCollider.gameObject.layer + ")" );
                 debugRecentHit = otherCollider.gameObject.name;
             }
+
+            //TODO: something in here throws a nullref
             
             if( !HeroController.instance.playerData.equippedCharm_15 )
                 return;
 
             Rigidbody2D body = otherCollider.GetComponentInParent<Rigidbody2D>();
-            bool isEnemy = otherCollider.gameObject.IsGameEnemy();
 
             if( body == null )
                 return;
 
+            bool isEnemy = body.gameObject.IsGameEnemy();
             if( !isEnemy )
                 return;
 

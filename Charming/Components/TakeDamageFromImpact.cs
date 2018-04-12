@@ -23,32 +23,53 @@ namespace CharmingMod.Components
             body = GetComponent<Rigidbody2D>();
             poob = GetComponent<PreventOutOfBounds>();
 
+            int mask = 8;
+            gameObject.layer |= mask;
+
             poob.onBoundCollision -= OnBoundsCollision;
             poob.onBoundCollision += OnBoundsCollision;
         }
 
         private void OnDisable()
         {
+            gameObject.layer = oldLayer;
+            //Dev.Log( " with layer (" + gameObject.layer + ")" );
+
+            poob.onBoundCollision -= OnBoundsCollision;
+        }
+
+        private void OnDestroy()
+        {
+            gameObject.layer = oldLayer;
+            //Dev.Log( " with layer (" + gameObject.layer + ")" );
+
             poob.onBoundCollision -= OnBoundsCollision;
         }
 
         void FixedUpdate()
         {
             body.position += blowVelocity * Time.fixedDeltaTime;
-            body.rotation += 100f * .985f * Time.fixedDeltaTime;
+            transform.rotation = transform.rotation * Quaternion.Euler( new Vector3(0f,0f, blowVelocity.magnitude * Time.fixedDeltaTime));
 
-            blowVelocity = blowVelocity * .985f;
+            blowVelocity = blowVelocity * .955f;
 
-            if( blowVelocity.magnitude <= 0.1f )
+            //in the case where we're just falling now
+            if( blowVelocity.magnitude <= 10f * body.gravityScale )
             {
                 transform.rotation = Quaternion.identity;
                 gameObject.layer = oldLayer;
+                //Dev.Log( " with layer (" + gameObject.layer + ")" );
+                if( poob != null )
+                    Destroy( poob );
                 Destroy( this );
             }
+            //TODO: kill an enemy that flies out of the scene
         }
 
         private void LateUpdate()
         {
+            //Dev.Log(""+ blowVelocity.magnitude );
+            //Dev.Log( ""+((blowVelocity.magnitude <= (10f * body.gravityScale)) ? "true" : "false") );
             reflectedThisFrame = false;
         }
 
@@ -68,7 +89,7 @@ namespace CharmingMod.Components
             {
                 AttackType = AttackTypes.Splatter,
                 CircleDirection = false,
-                DamageDealt = (int)(blowVelocity.magnitude),
+                DamageDealt = (int)(blowVelocity.magnitude * .25f),
                 Direction = 0f,
                 IgnoreInvulnerable = false,
                 IsExtraDamage = false,
@@ -81,26 +102,30 @@ namespace CharmingMod.Components
             };
 
             if( other.layer == 8 )
-            {
+            { 
                 healthManager.Hit( hit );
                 if(!reflectedThisFrame )
                     blowVelocity = normal * blowVelocity.magnitude;
                 reflectedThisFrame = true;
             }
 
-            //if( other.layer == 11 )
-            //{
-            //    Rigidbody2D rb = other.GetComponent<Rigidbody2D>();
-            //    if( rb != null )
-            //    {
-            //        blowVelocity = normal * blowVelocity.magnitude;
-            //        other.GetOrAddComponent<TakeDamageFromImpact>().blowVelocity = blowVelocity;
-            //        other.GetOrAddComponent<PreventOutOfBounds>();
-            //        DamageEnemies dme = other.GetOrAddComponent<DamageEnemies>();
-            //        dme.damageDealt = (int)blowVelocity.magnitude;
-            //        healthManager.Hit( hit );
-            //    }
-            //}
+            if( other.layer == 11 )
+            {
+                Rigidbody2D rb = other.GetComponentInParent<Rigidbody2D>();
+                if( rb != null )
+                {
+                    bool isEnemy = rb.gameObject.IsGameEnemy();
+                    if( !isEnemy )
+                        return;
+
+                    blowVelocity = normal * blowVelocity.magnitude;
+                    rb.gameObject.GetOrAddComponent<TakeDamageFromImpact>().blowVelocity = blowVelocity;
+                    rb.gameObject.GetOrAddComponent<PreventOutOfBounds>();
+                    DamageEnemies dme = rb.gameObject.GetOrAddComponent<DamageEnemies>();
+                    dme.damageDealt = (int)blowVelocity.magnitude;
+                    healthManager.Hit( hit );
+                }
+            }
         }
     }
 }

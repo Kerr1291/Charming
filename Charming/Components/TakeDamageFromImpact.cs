@@ -11,56 +11,107 @@ namespace CharmingMod.Components
     {
         public PreventOutOfBounds poob;
         public Vector2 blowVelocity;
+        public float dampingRate = .955f;
+
+        ///Callback used to determine if this component is "done" and should be removed
+        public Func<TakeDamageFromImpact, bool> isFinished;
+
+        protected virtual bool DefaultIsFinished( TakeDamageFromImpact self )
+        {
+            //return false;
+            return blowVelocity.magnitude <= 10f * Body.gravityScale;
+        }
+
         HealthManager healthManager;
+        public HealthManager HealthManager { get {
+                if( healthManager == null )
+                    healthManager = GetComponent<HealthManager>();
+                return healthManager;
+            }
+        }
+
         Rigidbody2D body;
-        int oldLayer;
-        bool reflectedThisFrame;
+        public Rigidbody2D Body {
+            get {
+                if( body == null )
+                    body = GetComponent<Rigidbody2D>();
+                return body;
+            }
+        }
+
+        protected bool reflectedThisFrame;
+
+        HitInstance ImpactHit {
+            get {
+                return new HitInstance()
+                {
+                    AttackType = AttackTypes.Splatter,
+                    CircleDirection = false,
+                    DamageDealt = 0,
+                    Direction = 0f,
+                    IgnoreInvulnerable = false,
+                    IsExtraDamage = false,
+                    MagnitudeMultiplier = 1f,
+                    MoveAngle = 0f,
+                    MoveDirection = false,
+                    Multiplier = 1f,
+                    Source = HeroController.instance.gameObject,
+                    SpecialType = SpecialTypes.None
+                };
+            }
+        }
 
         void OnEnable()
         {
-            oldLayer = gameObject.layer;
+            if( isFinished == null )
+                isFinished = DefaultIsFinished;
+
             healthManager = GetComponent<HealthManager>();
             body = GetComponent<Rigidbody2D>();
             poob = GetComponent<PreventOutOfBounds>();
 
-            int mask = 8;
-            gameObject.layer |= mask;
+            if( poob != null )
+            {
+                poob.otherLayer = 8;
 
-            poob.onBoundCollision -= OnBoundsCollision;
-            poob.onBoundCollision += OnBoundsCollision;
+                poob.onBoundCollision -= OnBoundsCollision;
+                poob.onBoundCollision += OnBoundsCollision;
+
+                poob.onOtherCollision -= OnEnemyCollision;
+                poob.onOtherCollision += OnEnemyCollision;
+            }
         }
 
         private void OnDisable()
         {
-            gameObject.layer = oldLayer;
-            //Dev.Log( " with layer (" + gameObject.layer + ")" );
+            if( poob != null )
+            {
+                poob.onBoundCollision -= OnBoundsCollision;
+                poob.onOtherCollision -= OnEnemyCollision;
+            }
 
-            poob.onBoundCollision -= OnBoundsCollision;
         }
 
         private void OnDestroy()
         {
-            gameObject.layer = oldLayer;
-            //Dev.Log( " with layer (" + gameObject.layer + ")" );
-
             poob.onBoundCollision -= OnBoundsCollision;
+            poob.onOtherCollision -= OnEnemyCollision;
         }
 
         void FixedUpdate()
         {
-            body.position += blowVelocity * Time.fixedDeltaTime;
+            if( isFinished == null )
+                isFinished = DefaultIsFinished;
+
+            Body.position += blowVelocity * Time.fixedDeltaTime;
             transform.rotation = transform.rotation * Quaternion.Euler( new Vector3(0f,0f, blowVelocity.magnitude * Time.fixedDeltaTime));
 
-            blowVelocity = blowVelocity * .955f;
-
-            //in the case where we're just falling now
-            if( blowVelocity.magnitude <= 10f * body.gravityScale )
+            blowVelocity = blowVelocity * dampingRate;
+            
+            if( DefaultIsFinished(this) )
             {
                 transform.rotation = Quaternion.identity;
-                gameObject.layer = oldLayer;
-                //Dev.Log( " with layer (" + gameObject.layer + ")" );
-                if( poob != null )
-                    Destroy( poob );
+                body.rotation = 0f;
                 Destroy( this );
             }
             //TODO: kill an enemy that flies out of the scene
@@ -68,14 +119,22 @@ namespace CharmingMod.Components
 
         private void LateUpdate()
         {
+            if( isFinished == null )
+                isFinished = DefaultIsFinished;
+
             //Dev.Log(""+ blowVelocity.magnitude );
             //Dev.Log( ""+((blowVelocity.magnitude <= (10f * body.gravityScale)) ? "true" : "false") );
-            reflectedThisFrame = false;
+            reflectedThisFrame = false;  
         }
 
         void OnBoundsCollision(RaycastHit2D ray, GameObject self, GameObject other)
         {
             OnCollision( other, ray.normal );
+        }
+
+        void OnEnemyCollision( RaycastHit2D ray, GameObject self, GameObject other )
+        {
+            OnEnemyCollision( other, ray.normal );
         }
 
         void OnCollisionEnter2D( Collision2D collision )
@@ -85,31 +144,28 @@ namespace CharmingMod.Components
 
         void OnCollision( GameObject other, Vector3 normal )
         {
-            HitInstance hit = new HitInstance()
-            {
-                AttackType = AttackTypes.Splatter,
-                CircleDirection = false,
-                DamageDealt = (int)(blowVelocity.magnitude * .25f),
-                Direction = 0f,
-                IgnoreInvulnerable = false,
-                IsExtraDamage = false,
-                MagnitudeMultiplier = 1f,
-                MoveAngle = 0f,
-                MoveDirection = false,
-                Multiplier = 1f,
-                Source = HeroController.instance.gameObject,
-                SpecialType = SpecialTypes.None
-            };
+            HitInstance hit = ImpactHit;
+            //hit.DamageDealt = (int)( blowVelocity.magnitude * .25f );
+            hit.DamageDealt = 0;
 
+            //1000
             if( other.layer == 8 )
             { 
-                healthManager.Hit( hit );
+                HealthManager.Hit( hit );
                 if(!reflectedThisFrame )
                     blowVelocity = normal * blowVelocity.magnitude;
                 reflectedThisFrame = true;
             }
+        }
 
-            if( other.layer == 11 )
+        void OnEnemyCollision( GameObject other, Vector3 normal )
+        {
+            Dev.Where();
+            HitInstance hit = ImpactHit;
+            hit.DamageDealt = (int)( blowVelocity.magnitude * .25f );
+
+            //1011
+            //if( ( other.layer & 11 ) > 0 )
             {
                 Rigidbody2D rb = other.GetComponentInParent<Rigidbody2D>();
                 if( rb != null )
@@ -123,7 +179,7 @@ namespace CharmingMod.Components
                     rb.gameObject.GetOrAddComponent<PreventOutOfBounds>();
                     DamageEnemies dme = rb.gameObject.GetOrAddComponent<DamageEnemies>();
                     dme.damageDealt = (int)blowVelocity.magnitude;
-                    healthManager.Hit( hit );
+                    HealthManager.Hit( hit );
                 }
             }
         }

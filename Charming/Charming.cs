@@ -107,10 +107,18 @@ namespace CharmingMod
             ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit;
         }
 
+
+        //static bool once = true;
         static string debugRecentHit = "";
         //static PhysicsMaterial2D hbMat;
         static void DebugPrintObjectOnHit( Collider2D otherCollider, GameObject gameObject )
         {
+            //if(once)
+            //{
+            //    once = false;
+            //    HeroController.instance.superDash.WriteComponentTree( HeroController.instance.gameObject.name +"_Superdash" );
+            //}
+
             //Dev.Where();
             if( otherCollider.gameObject.name != debugRecentHit )
             {
@@ -137,6 +145,7 @@ namespace CharmingMod
             DamageEnemies dmgEnemies = body.gameObject.GetOrAddComponent<DamageEnemies>();
 
             Vector2 blowDirection = otherCollider.transform.position - HeroController.instance.transform.position;
+            //blowDirection.y = 0f;
             float blowPower = 40f;
 
             dmgOnImpact.blowVelocity = blowDirection.normalized * blowPower;            

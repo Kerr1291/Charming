@@ -1,4 +1,8 @@
-﻿using System.IO;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
 using Modding;
 using UnityEngine;
 using ModCommon;
@@ -97,13 +101,36 @@ namespace CharmingMod
         void RegisterCallbacks()
         {
             Dev.Where();
+
+            //Gathering Swarm hooks
+            On.GeoRock.OnEnable -= RegisterGeoRock;
+            On.GeoRock.OnEnable += RegisterGeoRock;
+
+            On.GeoRock.OnDisable -= UnRegisterGeoRock;
+            On.GeoRock.OnDisable += UnRegisterGeoRock;
+            
+            On.GeoControl.Disable -= UnRegisterGeo;
+            On.GeoControl.Disable += UnRegisterGeo;
+
+            On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
+            On.GeoControl.FixedUpdate += ProcessGeoUpdate;
+
+            //Heavy Blow hooks
             ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit; 
             ModHooks.Instance.SlashHitHook += DebugPrintObjectOnHit;
         }
 
         void UnRegisterCallbacks()
         {
-            Dev.Where(); 
+            Dev.Where();
+
+            //Gathering Swarm hooks
+            On.GeoRock.OnEnable -= RegisterGeoRock;
+            On.GeoRock.OnDisable -= UnRegisterGeoRock;
+            On.GeoControl.Disable -= UnRegisterGeo;
+            On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
+
+            //Heavy Blow hooks
             ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit;
         }
 
@@ -151,5 +178,131 @@ namespace CharmingMod
             dmgOnImpact.blowVelocity = blowDirection.normalized * blowPower;            
             dmgEnemies.damageDealt = (int)blowPower;
         }
+
+        #region Gathering_Swarm
+
+        private static MethodInfo UpdateHitsOnRock = typeof(GeoRock).GetMethod("UpdateHitsLeftFromFSM", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static FieldInfo geoAttracted = typeof(GeoControl).GetField("attracted", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static FieldInfo geoBody = typeof(GeoControl).GetField("body", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        private Dictionary<GeoRock, PlayMakerFSM> rocks = new Dictionary<GeoRock, PlayMakerFSM>();
+        private Dictionary<GeoRock, GeoControl> rockChasers = new Dictionary<GeoRock, GeoControl>();
+        private Dictionary<GeoControl, GeoRock> rockChasersReverseLookup = new Dictionary<GeoControl, GeoRock>();
+
+        private void UnRegisterGeo(On.GeoControl.orig_Disable orig, GeoControl self, float waitTime)
+        {
+            orig(self, waitTime);
+
+            //If we don't set this explicitly, it will get added back into the tracked geo during FixedUpdate
+            geoAttracted.SetValue(self, false);
+
+            if (rockChasersReverseLookup.ContainsKey(self))
+            {
+                rockChasers.Remove(rockChasersReverseLookup[self]);
+                rockChasersReverseLookup.Remove(self);
+            }
+        }
+
+        private void RegisterGeoRock(On.GeoRock.orig_OnEnable orig, GeoRock self)
+        {
+            orig(self);
+            rocks.Add(self, self.gameObject.GetComponent<PlayMakerFSM>());
+        }
+
+        private void UnRegisterGeoRock(On.GeoRock.orig_OnDisable orig, GeoRock self)
+        {
+            orig(self);
+            if (rocks.ContainsKey(self)) rocks.Remove(self);
+            if (rockChasers.ContainsKey(self))
+            {
+                rockChasersReverseLookup.Remove(rockChasers[self]);
+                rockChasers.Remove(self);
+            }
+        }
+
+        private void ProcessGeoUpdate(On.GeoControl.orig_FixedUpdate orig, GeoControl self)
+        {
+            if ((bool)geoAttracted.GetValue(self))
+            {
+                //Remove rocks with no hits left
+                foreach (GeoRock rock in rocks.Keys.ToList())
+                {
+                    UpdateHitsOnRock.Invoke(rock, null);
+                    if (rock.geoRockData.hitsLeft <= 0)
+                    {
+                        rocks.Remove(rock);
+                        if (rockChasers.ContainsKey(rock))
+                        {
+                            rockChasersReverseLookup.Remove(rockChasers[rock]);
+                            rockChasers.Remove(rock);
+                        }
+                    }
+                }
+
+                //If this geo is already after a rock, use that. Otherwise get the closest one
+                GeoRock closest;
+                if (rockChasersReverseLookup.ContainsKey(self)) closest = rockChasersReverseLookup[self];
+                else closest = GetClosestRock(self);
+
+                //orig(self) makes it go after the hero if there's no rocks to chase
+                if (closest == null) orig(self);
+                else
+                {
+                    //Cache this rock-geo pair if it isn't already
+                    if (!rockChasers.ContainsKey(closest))
+                    {
+                        rockChasers.Add(closest, self);
+                        rockChasersReverseLookup.Add(self, closest);
+                    }
+
+                    Rigidbody2D body = (Rigidbody2D)geoBody.GetValue(self);
+
+                    //Copy pasted from GeoControl.FixedUpdate with hero changed to rock
+                    Vector2 vector = new Vector2(closest.transform.position.x - self.transform.position.x, closest.transform.position.y - 0.5f - self.transform.position.y);
+                    vector = Vector2.ClampMagnitude(vector, 1f);
+                    vector = new Vector2(vector.x * 150f, vector.y * 150f);
+                    body.AddForce(vector);
+                    Vector2 vector2 = body.velocity;
+                    vector2 = Vector2.ClampMagnitude(vector2, 20f);
+                    body.velocity = vector2;
+
+                    //Can't get collision/trigger enter events working
+                    PlayMakerFSM rockFSM = rocks[closest];
+                    if (DistBetween(self.transform.position, closest.transform.position) <= 1f && (rockFSM.ActiveStateName == "Idle" || rockFSM.ActiveStateName == "Gleam"))
+                    {
+                        rockFSM.SetState("Hit");
+                    }
+                }
+            }
+        }
+
+        private GeoRock GetClosestRock(GeoControl geo)
+        {
+            //This isn't efficient at all but it's fine because the value is cached in rockChasers
+            List<GeoRock> validRocks = rocks.Where(rockPair => !rockChasers.ContainsKey(rockPair.Key)).Select(rockPair => rockPair.Key).ToList();
+            if (validRocks.Count == 0) return null;
+
+            GeoRock closest = validRocks[0];
+            float closestDist = DistBetween(validRocks[0].transform.position, geo.transform.position);
+
+            foreach (GeoRock rock in validRocks)
+            {
+                float newDist = DistBetween(rock.transform.position, geo.transform.position);
+                if (newDist < closestDist)
+                {
+                    closestDist = newDist;
+                    closest = rock;
+                }
+            }
+
+            return closest;
+        }
+
+        private float DistBetween(Vector2 first, Vector2 second)
+        {
+            return (float)Math.Sqrt(Math.Pow(first.x - second.x, 2) + Math.Pow(first.y - second.y, 2));
+        }
+
+        #endregion
     }
 }

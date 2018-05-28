@@ -72,7 +72,7 @@ namespace CharmingMod.Components
 
             if( poob != null )
             {
-                poob.otherLayer = 8;
+                poob.otherLayer = (1 << 8);
 
                 poob.onBoundCollision -= OnBoundsCollision;
                 poob.onBoundCollision += OnBoundsCollision;
@@ -94,6 +94,8 @@ namespace CharmingMod.Components
 
         private void OnDestroy()
         {
+            if( poob == null )
+                return;
             poob.onBoundCollision -= OnBoundsCollision;
             poob.onOtherCollision -= OnEnemyCollision;
         }
@@ -149,7 +151,7 @@ namespace CharmingMod.Components
             hit.DamageDealt = 0;
 
             //1000
-            if( other.layer == 8 )
+            if( (other.layer & (1 << 8)) > 0 )
             { 
                 HealthManager.Hit( hit );
                 if(!reflectedThisFrame )

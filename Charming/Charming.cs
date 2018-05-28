@@ -22,6 +22,8 @@ namespace CharmingMod
 
         CommunicationNode comms;
 
+        HarmonyInstance modHooks;
+
         public override void Initialize()
         {
             if(Instance != null)
@@ -42,6 +44,8 @@ namespace CharmingMod
             RegisterCallbacks();
 
             Log( this.GetType().Name + " is done initializing!" );
+
+            modHooks = ModCommon.HarmonyInstance.Create( "com.mods.hollowknight.charming" );
         }
 
         void SetupDefaulSettings()
@@ -103,37 +107,12 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            try
-            {
-                On.GeoRock.OnEnable -= RegisterGeoRock;
-            }
-            catch { }
-            On.GeoRock.OnEnable += RegisterGeoRock;
-
-            try
-            {
-                On.GeoRock.OnDisable -= UnRegisterGeoRock;
-            }
-            catch { }
-            On.GeoRock.OnDisable += UnRegisterGeoRock;
-
-            try
-            {
-                On.GeoControl.Disable -= UnRegisterGeo;
-            }
-            catch { }
-            On.GeoControl.Disable += UnRegisterGeo;
-
-            try
-            {
-                On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
-            }
-            catch { }
-            On.GeoControl.FixedUpdate += ProcessGeoUpdate;
+            PatchGeoRock();
+            PatchGeoControl();
 
             //Heavy Blow hooks
-            ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit; 
-            ModHooks.Instance.SlashHitHook += DebugPrintObjectOnHit;
+            ModHooks.Instance.SlashHitHook -= ApplyOnHitEffects; 
+            ModHooks.Instance.SlashHitHook += ApplyOnHitEffects;
         }
 
         void UnRegisterCallbacks()
@@ -141,36 +120,16 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            try
-            {
-                On.GeoRock.OnEnable -= RegisterGeoRock;
-            }
-            catch { }
-            try
-            {
-                On.GeoRock.OnDisable -= UnRegisterGeoRock;
-            }
-            catch { }
-            try
-            {
-                On.GeoControl.Disable -= UnRegisterGeo;
-            }
-            catch { }
-            try
-            {
-                On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
-            }
-            catch { }
 
             //Heavy Blow hooks
-            ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit;
+            ModHooks.Instance.SlashHitHook -= ApplyOnHitEffects;
         }
 
 
         //static bool once = true;
         static string debugRecentHit = "";
         //static PhysicsMaterial2D hbMat;
-        static void DebugPrintObjectOnHit( Collider2D otherCollider, GameObject gameObject )
+        static void ApplyOnHitEffects( Collider2D otherCollider, GameObject gameObject )
         {
             //if(once)
             //{
@@ -213,53 +172,90 @@ namespace CharmingMod
 
         #region Gathering_Swarm
 
-        private static MethodInfo UpdateHitsOnRock = typeof(GeoRock).GetMethod("UpdateHitsLeftFromFSM", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static MethodInfo GeoRock_UpdateHitsOnRock = typeof(GeoRock).GetMethod("UpdateHitsLeftFromFSM", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static MethodInfo GeoRock_OnEnable = typeof(GeoRock).GetMethod("OnEnable", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static MethodInfo GeoRock_OnDisable = typeof(GeoRock).GetMethod("OnDisable", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        private static MethodInfo registerGeoRock = typeof(CharmingMod).GetMethod("RegisterGeoRock", BindingFlags.NonPublic | BindingFlags.Static);
+        private static MethodInfo unRegisterGeoRock = typeof(CharmingMod).GetMethod("UnRegisterGeoRock", BindingFlags.NonPublic | BindingFlags.Static);
+
+        private static MethodInfo unRegisterGeo = typeof(CharmingMod).GetMethod("UnRegisterGeo", BindingFlags.NonPublic | BindingFlags.Static);
+        private static MethodInfo processGeoUpdate = typeof(CharmingMod).GetMethod("ProcessGeoUpdate", BindingFlags.NonPublic | BindingFlags.Static);
+        private static MethodInfo processGeoUpdatePost = typeof(CharmingMod).GetMethod("ProcessGeoUpdatePost", BindingFlags.NonPublic | BindingFlags.Static);
+
+
+        private static MethodInfo GeoControl_FixedUpdate = typeof(GeoControl).GetMethod("FixedUpdate", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static MethodInfo GeoControl_Disable = typeof(GeoControl).GetMethod("Disable", BindingFlags.NonPublic | BindingFlags.Instance);
         private static FieldInfo geoAttracted = typeof(GeoControl).GetField("attracted", BindingFlags.NonPublic | BindingFlags.Instance);
         private static FieldInfo geoBody = typeof(GeoControl).GetField("body", BindingFlags.NonPublic | BindingFlags.Instance);
 
-        private Dictionary<GeoRock, PlayMakerFSM> rocks = new Dictionary<GeoRock, PlayMakerFSM>();
-        private Dictionary<GeoRock, GeoControl> rockChasers = new Dictionary<GeoRock, GeoControl>();
-        private Dictionary<GeoControl, GeoRock> rockChasersReverseLookup = new Dictionary<GeoControl, GeoRock>();
-
-        private void UnRegisterGeo(On.GeoControl.orig_Disable orig, GeoControl self, float waitTime)
+        private static Dictionary<GeoRock, PlayMakerFSM> rocks = new Dictionary<GeoRock, PlayMakerFSM>();
+        private static Dictionary<GeoRock, GeoControl> rockChasers = new Dictionary<GeoRock, GeoControl>();
+        private static Dictionary<GeoControl, GeoRock> rockChasersReverseLookup = new Dictionary<GeoControl, GeoRock>();
+        
+        void PatchGeoRock()
         {
-            orig(self, waitTime);
+            modHooks.Patch( GeoRock_OnEnable, null, new HarmonyMethod( registerGeoRock ) );
+            modHooks.Patch( GeoRock_OnDisable, null, new HarmonyMethod( unRegisterGeoRock ) );
+        }
 
+        void PatchGeoControl()
+        {
+            modHooks.Patch( GeoControl_Disable, null, new HarmonyMethod( unRegisterGeo ) );
+            modHooks.Patch( GeoControl_FixedUpdate, new HarmonyMethod( processGeoUpdate ), new HarmonyMethod( processGeoUpdatePost ) );
+        }
+
+        void UnPatchGeoRock()
+        {
+            modHooks.RemovePatch( GeoRock_OnEnable, HarmonyPatchType.All );
+            modHooks.RemovePatch( GeoRock_OnDisable, HarmonyPatchType.All );
+        }
+
+        void UnPatchGeoControl()
+        {
+            modHooks.RemovePatch( GeoControl_Disable, HarmonyPatchType.All );
+            modHooks.RemovePatch( GeoControl_FixedUpdate, HarmonyPatchType.All );
+        }
+
+        //special harmony param, get the instance associated with this hook
+        private static void RegisterGeoRock( GeoRock __instance )
+        {
+            rocks.Add( __instance, __instance.gameObject.GetComponent<PlayMakerFSM>());
+        }
+
+        private static void UnRegisterGeoRock( GeoRock __instance )
+        {
+            if (rocks.ContainsKey( __instance ) ) rocks.Remove( __instance );
+            if (rockChasers.ContainsKey( __instance ) )
+            {
+                rockChasersReverseLookup.Remove(rockChasers[ __instance ] );
+                rockChasers.Remove( __instance );
+            }
+        }
+
+        private static void UnRegisterGeo( GeoControl __instance, float waitTime )
+        {
             //If we don't set this explicitly, it will get added back into the tracked geo during FixedUpdate
-            geoAttracted.SetValue(self, false);
+            geoAttracted.SetValue( __instance, false );
 
-            if (rockChasersReverseLookup.ContainsKey(self))
+            if( rockChasersReverseLookup.ContainsKey( __instance ) )
             {
-                rockChasers.Remove(rockChasersReverseLookup[self]);
-                rockChasersReverseLookup.Remove(self);
+                rockChasers.Remove( rockChasersReverseLookup[ __instance ] );
+                rockChasersReverseLookup.Remove( __instance );
             }
         }
 
-        private void RegisterGeoRock(On.GeoRock.orig_OnEnable orig, GeoRock self)
+        private static void ProcessGeoUpdate(GeoControl __instance, bool __state )
         {
-            orig(self);
-            rocks.Add(self, self.gameObject.GetComponent<PlayMakerFSM>());
-        }
+            //save the attracted value in our local harmony state variable
+            __state = (bool)geoAttracted.GetValue( __instance );
 
-        private void UnRegisterGeoRock(On.GeoRock.orig_OnDisable orig, GeoRock self)
-        {
-            orig(self);
-            if (rocks.ContainsKey(self)) rocks.Remove(self);
-            if (rockChasers.ContainsKey(self))
-            {
-                rockChasersReverseLookup.Remove(rockChasers[self]);
-                rockChasers.Remove(self);
-            }
-        }
-
-        private void ProcessGeoUpdate(On.GeoControl.orig_FixedUpdate orig, GeoControl self)
-        {
-            if ((bool)geoAttracted.GetValue(self))
+            if ( __state )
             {
                 //Remove rocks with no hits left
                 foreach (GeoRock rock in rocks.Keys.ToList())
                 {
-                    UpdateHitsOnRock.Invoke(rock, null);
+                    GeoRock_UpdateHitsOnRock.Invoke(rock, null);
                     if (rock.geoRockData.hitsLeft <= 0)
                     {
                         rocks.Remove(rock);
@@ -273,24 +269,23 @@ namespace CharmingMod
 
                 //If this geo is already after a rock, use that. Otherwise get the closest one
                 GeoRock closest;
-                if (rockChasersReverseLookup.ContainsKey(self)) closest = rockChasersReverseLookup[self];
-                else closest = GetClosestRock(self);
+                if (rockChasersReverseLookup.ContainsKey(__instance )) closest = rockChasersReverseLookup[__instance ];
+                else closest = GetClosestRock(__instance );
 
                 //orig(self) makes it go after the hero if there's no rocks to chase
-                if (closest == null) orig(self);
-                else
+                if (closest != null)
                 {
                     //Cache this rock-geo pair if it isn't already
                     if (!rockChasers.ContainsKey(closest))
                     {
-                        rockChasers.Add(closest, self);
-                        rockChasersReverseLookup.Add(self, closest);
+                        rockChasers.Add(closest, __instance );
+                        rockChasersReverseLookup.Add(__instance , closest);
                     }
 
-                    Rigidbody2D body = (Rigidbody2D)geoBody.GetValue(self);
+                    Rigidbody2D body = (Rigidbody2D)geoBody.GetValue(__instance );
 
                     //Copy pasted from GeoControl.FixedUpdate with hero changed to rock
-                    Vector2 vector = new Vector2(closest.transform.position.x - self.transform.position.x, closest.transform.position.y - 0.5f - self.transform.position.y);
+                    Vector2 vector = new Vector2(closest.transform.position.x - __instance .transform.position.x, closest.transform.position.y - 0.5f - __instance .transform.position.y);
                     vector = Vector2.ClampMagnitude(vector, 1f);
                     vector = new Vector2(vector.x * 150f, vector.y * 150f);
                     body.AddForce(vector);
@@ -300,15 +295,24 @@ namespace CharmingMod
 
                     //Can't get collision/trigger enter events working
                     PlayMakerFSM rockFSM = rocks[closest];
-                    if (DistBetween(self.transform.position, closest.transform.position) <= 1f && (rockFSM.ActiveStateName == "Idle" || rockFSM.ActiveStateName == "Gleam"))
+                    if (DistBetween(__instance .transform.position, closest.transform.position) <= 1f && (rockFSM.ActiveStateName == "Idle" || rockFSM.ActiveStateName == "Gleam"))
                     {
                         rockFSM.SetState("Hit");
                     }
                 }
+
+                //disables the attracted state so the default logic does not run
+                geoAttracted.SetValue( __instance, false );
             }
         }
 
-        private GeoRock GetClosestRock(GeoControl geo)
+        //on post process, restore the attracted value
+        private static void ProcessGeoUpdatePost( GeoControl __instance, bool __state )
+        {
+            geoAttracted.SetValue( __instance, __state );
+        }
+
+        private static GeoRock GetClosestRock(GeoControl geo)
         {
             //This isn't efficient at all but it's fine because the value is cached in rockChasers
             List<GeoRock> validRocks = rocks.Where(rockPair => !rockChasers.ContainsKey(rockPair.Key)).Select(rockPair => rockPair.Key).ToList();
@@ -330,9 +334,10 @@ namespace CharmingMod
             return closest;
         }
 
-        private float DistBetween(Vector2 first, Vector2 second)
+        private static float DistBetween(Vector2 first, Vector2 second)
         {
-            return (float)Math.Sqrt(Math.Pow(first.x - second.x, 2) + Math.Pow(first.y - second.y, 2));
+            return Vector2.Distance( first, second );
+                //(float)Math.Sqrt(Math.Pow(first.x - second.x, 2) + Math.Pow(first.y - second.y, 2));
         }
 
         #endregion

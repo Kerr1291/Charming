@@ -103,16 +103,32 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            On.GeoRock.OnEnable -= RegisterGeoRock;
+            try
+            {
+                On.GeoRock.OnEnable -= RegisterGeoRock;
+            }
+            catch { }
             On.GeoRock.OnEnable += RegisterGeoRock;
 
-            On.GeoRock.OnDisable -= UnRegisterGeoRock;
+            try
+            {
+                On.GeoRock.OnDisable -= UnRegisterGeoRock;
+            }
+            catch { }
             On.GeoRock.OnDisable += UnRegisterGeoRock;
-            
-            On.GeoControl.Disable -= UnRegisterGeo;
+
+            try
+            {
+                On.GeoControl.Disable -= UnRegisterGeo;
+            }
+            catch { }
             On.GeoControl.Disable += UnRegisterGeo;
 
-            On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
+            try
+            {
+                On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
+            }
+            catch { }
             On.GeoControl.FixedUpdate += ProcessGeoUpdate;
 
             //Heavy Blow hooks
@@ -125,10 +141,26 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            On.GeoRock.OnEnable -= RegisterGeoRock;
-            On.GeoRock.OnDisable -= UnRegisterGeoRock;
-            On.GeoControl.Disable -= UnRegisterGeo;
-            On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
+            try
+            {
+                On.GeoRock.OnEnable -= RegisterGeoRock;
+            }
+            catch { }
+            try
+            {
+                On.GeoRock.OnDisable -= UnRegisterGeoRock;
+            }
+            catch { }
+            try
+            {
+                On.GeoControl.Disable -= UnRegisterGeo;
+            }
+            catch { }
+            try
+            {
+                On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
+            }
+            catch { }
 
             //Heavy Blow hooks
             ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit;

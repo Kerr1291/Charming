@@ -120,6 +120,8 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
+            UnPatchGeoRock();
+            UnPatchGeoControl();
 
             //Heavy Blow hooks
             ModHooks.Instance.SlashHitHook -= ApplyOnHitEffects;

@@ -185,7 +185,7 @@ namespace CharmingMod
 
 
         private static MethodInfo GeoControl_FixedUpdate = typeof(GeoControl).GetMethod("FixedUpdate", BindingFlags.NonPublic | BindingFlags.Instance);
-        private static MethodInfo GeoControl_Disable = typeof(GeoControl).GetMethod("Disable", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static MethodInfo GeoControl_Disable = typeof(GeoControl).GetMethod("Disable", BindingFlags.Public | BindingFlags.Instance);
         private static FieldInfo geoAttracted = typeof(GeoControl).GetField("attracted", BindingFlags.NonPublic | BindingFlags.Instance);
         private static FieldInfo geoBody = typeof(GeoControl).GetField("body", BindingFlags.NonPublic | BindingFlags.Instance);
 
@@ -245,7 +245,7 @@ namespace CharmingMod
             }
         }
 
-        private static void ProcessGeoUpdate(GeoControl __instance, bool __state )
+        private static void ProcessGeoUpdate(GeoControl __instance, ref bool __state )
         {
             //save the attracted value in our local harmony state variable
             __state = (bool)geoAttracted.GetValue( __instance );
@@ -299,10 +299,10 @@ namespace CharmingMod
                     {
                         rockFSM.SetState("Hit");
                     }
-                }
 
-                //disables the attracted state so the default logic does not run
-                geoAttracted.SetValue( __instance, false );
+                    //disables the attracted state so the default logic does not run
+                    geoAttracted.SetValue( __instance, false );
+                }
             }
         }
 

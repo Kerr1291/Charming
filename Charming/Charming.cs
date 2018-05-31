@@ -103,35 +103,19 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            try
-            {
-                On.GeoRock.OnEnable -= RegisterGeoRock;
-            }
-            catch { }
+            On.GeoRock.OnEnable -= RegisterGeoRock;
             On.GeoRock.OnEnable += RegisterGeoRock;
 
-            try
-            {
-                On.GeoRock.OnDisable -= UnRegisterGeoRock;
-            }
-            catch { }
+            On.GeoRock.OnDisable -= UnRegisterGeoRock;
             On.GeoRock.OnDisable += UnRegisterGeoRock;
-
-            try
-            {
-                On.GeoControl.Disable -= UnRegisterGeo;
-            }
-            catch { }
+            
+            On.GeoControl.Disable -= UnRegisterGeo;
             On.GeoControl.Disable += UnRegisterGeo;
 
-            try
-            {
-                On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
-            }
-            catch { }
+            On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
             On.GeoControl.FixedUpdate += ProcessGeoUpdate;
 
-            //Wayward Compass hooks
+            // Wayward Compass hooks
             ModHooks.Instance.HeroUpdateHook -= RenderMinimap;
             ModHooks.Instance.HeroUpdateHook += RenderMinimap;
 
@@ -145,28 +129,11 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            try
-            {
-                On.GeoRock.OnEnable -= RegisterGeoRock;
-            }
-            catch { }
-            try
-            {
-                On.GeoRock.OnDisable -= UnRegisterGeoRock;
-            }
-            catch { }
-            try
-            {
-                On.GeoControl.Disable -= UnRegisterGeo;
-            }
-            catch { }
-            try
-            {
-                On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
-            }
-            catch { }
+            On.GeoRock.OnEnable -= RegisterGeoRock;
+            On.GeoRock.OnDisable -= UnRegisterGeoRock;
+            On.GeoControl.Disable -= UnRegisterGeo;
+            On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
 
-            //Wayward Compass hooks
             ModHooks.Instance.HeroUpdateHook -= RenderMinimap;
 
             //Heavy Blow hooks
@@ -220,20 +187,6 @@ namespace CharmingMod
 
         #region Gathering_Swarm
 
-        private static MethodInfo GeoRock_UpdateHitsOnRock = typeof(GeoRock).GetMethod("UpdateHitsLeftFromFSM", BindingFlags.NonPublic | BindingFlags.Instance);
-        private static MethodInfo GeoRock_OnEnable = typeof(GeoRock).GetMethod("OnEnable", BindingFlags.NonPublic | BindingFlags.Instance);
-        private static MethodInfo GeoRock_OnDisable = typeof(GeoRock).GetMethod("OnDisable", BindingFlags.NonPublic | BindingFlags.Instance);
-
-        private static MethodInfo registerGeoRock = typeof(CharmingMod).GetMethod("RegisterGeoRock", BindingFlags.NonPublic | BindingFlags.Static);
-        private static MethodInfo unRegisterGeoRock = typeof(CharmingMod).GetMethod("UnRegisterGeoRock", BindingFlags.NonPublic | BindingFlags.Static);
-
-        private static MethodInfo unRegisterGeo = typeof(CharmingMod).GetMethod("UnRegisterGeo", BindingFlags.NonPublic | BindingFlags.Static);
-        private static MethodInfo processGeoUpdate = typeof(CharmingMod).GetMethod("ProcessGeoUpdate", BindingFlags.NonPublic | BindingFlags.Static);
-        private static MethodInfo processGeoUpdatePost = typeof(CharmingMod).GetMethod("ProcessGeoUpdatePost", BindingFlags.NonPublic | BindingFlags.Static);
-
-
-        private static MethodInfo GeoControl_FixedUpdate = typeof(GeoControl).GetMethod("FixedUpdate", BindingFlags.NonPublic | BindingFlags.Instance);
-        private static MethodInfo GeoControl_Disable = typeof(GeoControl).GetMethod("Disable", BindingFlags.Public | BindingFlags.Instance);
         private static MethodInfo UpdateHitsOnRock = typeof(GeoRock).GetMethod("UpdateHitsLeftFromFSM", BindingFlags.NonPublic | BindingFlags.Instance);
         private static FieldInfo geoAttracted = typeof(GeoControl).GetField("attracted", BindingFlags.NonPublic | BindingFlags.Instance);
         private static FieldInfo geoBody = typeof(GeoControl).GetField("body", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -325,9 +278,6 @@ namespace CharmingMod
                     {
                         rockFSM.SetState("Hit");
                     }
-
-                    //disables the attracted state so the default logic does not run
-                    geoAttracted.SetValue( self, false );
                 }
             }
         }
@@ -356,7 +306,7 @@ namespace CharmingMod
 
         private float DistBetween(Vector2 first, Vector2 second)
         {
-            return (float)Math.Sqrt(Math.Pow(first.x - second.x, 2) + Math.Pow(first.y - second.y, 2));
+            return Vector2.Distance(first, second);
         }
 
         #endregion
@@ -396,7 +346,7 @@ namespace CharmingMod
             if (Time.realtimeSinceStartup - lastMapTime > MAP_UPDATE_RATE)
             {
                 CameraController cam = GameManager.instance.cameraCtrl;
-                
+
                 //Figure out the target scale and which axis to move on
                 float camScaleX = 30f / (cam.xLimit + 14.6f);
                 float camScaleY = ((9f / 16f) * 30f) / (cam.yLimit + 8.3f);

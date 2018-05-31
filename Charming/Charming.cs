@@ -124,8 +124,6 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            UnPatchGeoRock();
-            UnPatchGeoControl();
 
             //Wayward Compass hooks
             ModHooks.Instance.HeroUpdateHook -= RenderMinimap;

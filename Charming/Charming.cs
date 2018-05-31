@@ -40,12 +40,12 @@ namespace CharmingMod
 
             SetupDefaulSettings();
 
-            modHooks = ModCommon.HarmonyInstance.Create( "com.mods.hollowknight.charming" );
-
             UnRegisterCallbacks();
             RegisterCallbacks();
 
             Log( this.GetType().Name + " is done initializing!" );
+
+            modHooks = ModCommon.HarmonyInstance.Create( "com.mods.hollowknight.charming" );
         }
 
         void SetupDefaulSettings()

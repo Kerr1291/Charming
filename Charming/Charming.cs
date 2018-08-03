@@ -34,6 +34,12 @@ namespace CharmingMod
             comms = new CommunicationNode();
             comms.EnableNode( this );
 
+            //Must manually set these for them to show up in the config file
+            //I know this looks super wonky but it's the current best way to handle this
+            GlobalSettings.GatheringSwarmChanges = GlobalSettings.GatheringSwarmChanges;
+            GlobalSettings.WaywardCompassChanges = GlobalSettings.WaywardCompassChanges;
+            GlobalSettings.HeavyBlowChanges = GlobalSettings.HeavyBlowChanges;
+
             Log( this.GetType().Name +" initializing!");
 
             SetupDefaulSettings();
@@ -103,25 +109,34 @@ namespace CharmingMod
             Dev.Where();
 
             //Gathering Swarm hooks
-            On.GeoRock.OnEnable -= RegisterGeoRock;
-            On.GeoRock.OnEnable += RegisterGeoRock;
+            if (GlobalSettings.GatheringSwarmChanges)
+            {
+                On.GeoRock.OnEnable -= RegisterGeoRock;
+                On.GeoRock.OnEnable += RegisterGeoRock;
 
-            On.GeoRock.OnDisable -= UnRegisterGeoRock;
-            On.GeoRock.OnDisable += UnRegisterGeoRock;
-            
-            On.GeoControl.Disable -= UnRegisterGeo;
-            On.GeoControl.Disable += UnRegisterGeo;
+                On.GeoRock.OnDisable -= UnRegisterGeoRock;
+                On.GeoRock.OnDisable += UnRegisterGeoRock;
 
-            On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
-            On.GeoControl.FixedUpdate += ProcessGeoUpdate;
+                On.GeoControl.Disable -= UnRegisterGeo;
+                On.GeoControl.Disable += UnRegisterGeo;
+
+                On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
+                On.GeoControl.FixedUpdate += ProcessGeoUpdate;
+            }
 
             // Wayward Compass hooks
-            ModHooks.Instance.HeroUpdateHook -= RenderMinimap;
-            ModHooks.Instance.HeroUpdateHook += RenderMinimap;
+            if (GlobalSettings.WaywardCompassChanges)
+            {
+                ModHooks.Instance.HeroUpdateHook -= RenderMinimap;
+                ModHooks.Instance.HeroUpdateHook += RenderMinimap;
+            }
 
             //Heavy Blow hooks
-            ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit; 
-            ModHooks.Instance.SlashHitHook += DebugPrintObjectOnHit;
+            if (GlobalSettings.HeavyBlowChanges)
+            {
+                ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit;
+                ModHooks.Instance.SlashHitHook += DebugPrintObjectOnHit;
+            }
         }
 
         void UnRegisterCallbacks()

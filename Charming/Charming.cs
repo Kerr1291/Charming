@@ -10,12 +10,15 @@ using ModCommon;
 namespace CharmingMod
 {
     using Components;
+    using System.Collections;
+    using UnityEngine.SceneManagement;
+
     /* 
-     * For a nicer building experience, change 
-     * SET MOD_DEST="K:\Games\steamapps\common\Hollow Knight\hollow_knight_Data\Managed\Mods"
-     * in install_build.bat to point to your hollow knight mods folder...
-     * 
-     */
+* For a nicer building experience, change 
+* SET MOD_DEST="K:\Games\steamapps\common\Hollow Knight\hollow_knight_Data\Managed\Mods"
+* in install_build.bat to point to your hollow knight mods folder...
+* 
+*/
     public partial class CharmingMod : Mod<CharmingModSaveSettings, CharmingModSettings>, ITogglableMod
     {  
         public static CharmingMod Instance { get; private set; }
@@ -127,8 +130,10 @@ namespace CharmingMod
             // Wayward Compass hooks
             if (GlobalSettings.WaywardCompassChanges)
             {
-                ModHooks.Instance.HeroUpdateHook -= RenderMinimap;
-                ModHooks.Instance.HeroUpdateHook += RenderMinimap;
+                ModHooks.Instance.CharmUpdateHook += CharmMapUpdate;
+                ModHooks.Instance.HeroUpdateHook += HeroMapUpdate;
+                UnityEngine.SceneManagement.SceneManager.sceneLoaded += UpdateMinimap;
+                UnityEngine.SceneManagement.SceneManager.activeSceneChanged += UpdateMinimap;
             }
 
             //Heavy Blow hooks
@@ -149,7 +154,17 @@ namespace CharmingMod
             On.GeoControl.Disable -= UnRegisterGeo;
             On.GeoControl.FixedUpdate -= ProcessGeoUpdate;
 
-            ModHooks.Instance.HeroUpdateHook -= RenderMinimap;
+            // Wayward Compass / Minimap hooks
+            if (minimap != null)
+            {
+                minimap.Unload();
+                minimap = null;
+            }
+            
+            ModHooks.Instance.HeroUpdateHook -= HeroMapUpdate;
+            ModHooks.Instance.CharmUpdateHook -= CharmMapUpdate;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= UpdateMinimap;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged -= UpdateMinimap;
 
             //Heavy Blow hooks
             ModHooks.Instance.SlashHitHook -= DebugPrintObjectOnHit;
@@ -328,105 +343,100 @@ namespace CharmingMod
 
         #region Wayward_Compass
 
-        private const int MAP_SCALE = 4;
-        private const float MAP_UPDATE_RATE = 1 / 30f;
+        public Minimap minimap;
 
-        private UnityEngine.UI.Image minimap;
-        private RenderTexture renderTex = new RenderTexture(Screen.width / MAP_SCALE, Screen.height / MAP_SCALE, 0);
-        private Texture2D tex = new Texture2D(Screen.width / MAP_SCALE, Screen.height / MAP_SCALE);
-        private float lastMapTime = 0f;
-
-        private void RenderMinimap()
+        private void UpdateMinimap(Scene from, Scene to)
         {
-            //If charm isn't equipped, clean up the map objects and exit
-            if (!PlayerData.instance.GetBool("equippedCharm_2"))
+            if (HeroController.instance == null)
+            {
+                minimap.Unload();
+                minimap = null;
+            }
+            GameManager.instance.StartCoroutine(UpdateMap());
+        }
+
+        private void UpdateMinimap(Scene from, LoadSceneMode lsm)
+        {
+            GameManager.instance.StartCoroutine(UpdateMap());
+        }
+
+        private IEnumerator UpdateMap()
+        {
+            if (minimap != null)
+            {
+                
+                yield return new WaitForSeconds(0.2f);
+            
+                UpdateMinimap();
+            }
+            yield break;
+        }
+
+        private void UpdateMinimap()
+        {
+            if (HeroController.instance == null)
             {
                 if (minimap != null)
                 {
-                    UnityEngine.Object.Destroy(minimap.gameObject.transform.parent.gameObject);
+                    minimap.Unload();
+                    minimap = null;
                 }
-
-                return;
             }
 
-            //Create the map object if it doesn't exist yet
-            if (minimap == null)
+            if (minimap != null)
             {
-                GameObject minimapCanvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceOverlay, new Vector2(1920, 1080));
-                CanvasUtil.CreateImagePanel(minimapCanvas, CanvasUtil.NullSprite(new byte[] { 0xFF, 0x00, 0x00, 0xFF }), new CanvasUtil.RectData(Vector2.zero, Vector2.zero, new Vector2(0.7875f, 0.745f), new Vector2(0.9925f, 0.955f))).GetComponent<UnityEngine.UI.Image>().preserveAspect = false;
-                minimap = CanvasUtil.CreateImagePanel(minimapCanvas, CanvasUtil.NullSprite(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }), new CanvasUtil.RectData(Vector2.zero, Vector2.zero, new Vector2(0.79f, 0.75f), new Vector2(0.99f, 0.95f))).GetComponent<UnityEngine.UI.Image>();
-            }
-
-            //Aiming for 30 fps here because higher would kill fps
-            if (Time.realtimeSinceStartup - lastMapTime > MAP_UPDATE_RATE)
-            {
-                CameraController cam = GameManager.instance.cameraCtrl;
-
-                //Figure out the target scale and which axis to move on
-                float camScaleX = 30f / (cam.xLimit + 14.6f);
-                float camScaleY = ((9f / 16f) * 30f) / (cam.yLimit + 8.3f);
-                bool movingX = camScaleX < camScaleY;
-                float camScale = Math.Max(camScaleX, camScaleY);
-
-                //Save old values to restore after rendering minimap
-                float oldScale = GameCameras.instance.tk2dCam.ZoomFactor;
-                bool vignette = HeroController.instance.vignette.enabled;
-                Vector3 oldPos = cam.gameObject.transform.position;
-                Vector3 oldTargetPos = cam.camTarget.transform.position;
-
-                //Remove fade out away from player and zoom to target scale
-                HeroController.instance.vignette.enabled = false;
-                GameCameras.instance.tk2dCam.ZoomFactor = camScale;
-
-                //Move along the x or y axis
-                if (movingX)
+                if (HeroController.instance.playerData.equippedCharm_2 && !GameManager.instance.IsCinematicScene() && GameManager.instance.IsGameplayScene() && !GameManager.instance.IsStagTravelScene())
                 {
-                    float camMin = 14.6f / camScale;
-                    float camMax = (cam.xLimit + 14.6f) - 14.6f / camScale;
-
-                    float camX = HeroController.instance.gameObject.transform.position.x;
-                    if (camX < camMin) camX = camMin;
-                    else if (camX > camMax) camX = camMax;
-
-                    cam.SnapTo(camX, (cam.yLimit + 8.3f) / 2f);
+                    minimap.Show();
                 }
                 else
                 {
-                    float camMin = 8.3f / camScale;
-                    float camMax = (cam.yLimit + 8.3f) - 8.3f / camScale;
-
-                    float camY = HeroController.instance.gameObject.transform.position.y;
-                    if (camY < camMin) camY = camMin;
-                    else if (camY > camMax) camY = camMax;
-
-                    cam.SnapTo((cam.xLimit + 14.6f) / 2f, camY);
+                    minimap.Hide();
                 }
+                minimap.UpdateAreas();
+            }
+        }
 
-                //Render the game onto the render texture
-                cam.cam.targetTexture = renderTex;
-                cam.cam.Render();
-                cam.cam.targetTexture = null;
+        public void CharmMapUpdate(PlayerData pd, HeroController hc)
+        {
+            if (minimap != null)
+            {
+                if (pd.equippedCharm_2)
+                {
+                    GameMap map = GameManager.instance.gameMap.GetComponent<GameMap>();
+                    map.SetupMap();
+                    minimap.Show();
 
-                //Restore old values
-                HeroController.instance.vignette.enabled = vignette;
-                GameCameras.instance.tk2dCam.ZoomFactor = oldScale;
-                cam.gameObject.transform.position = oldPos;
-                cam.camTarget.transform.position = oldTargetPos;
+                    minimap.UpdateAreas();
+                }
+                else
+                {
+                    minimap.Hide();
+                }
+            }
+        }
 
-                //Apply the downscaled game image to a texture
-                RenderTexture.active = renderTex;
-                tex.ReadPixels(new Rect(0, 0, Screen.width / MAP_SCALE, Screen.height / MAP_SCALE), 0, 0);
-                tex.Apply(false);
-                RenderTexture.active = null;
-
-                //I don't trust Unity to not leak without explicit destructors
-                UnityEngine.Object.Destroy(minimap.sprite);
-
-                //Create a sprite from the texture and stick it on the minimap
-                minimap.sprite = Sprite.Create(tex, new Rect(0, 0, Screen.width / MAP_SCALE, Screen.height / MAP_SCALE), Vector2.zero);
-
-                //Keep track of frame time
-                lastMapTime = Time.realtimeSinceStartup;
+        public void HeroMapUpdate()
+        {
+            bool equippedCompass = PlayerData.instance.equippedCharm_2;
+            if (equippedCompass)
+            {
+                GameManager.instance.UpdateGameMap();
+                if (GameManager.instance.gameMap != null)
+                {
+                    if (minimap == null)
+                    {
+                        GameMap map = GameManager.instance.gameMap.GetComponent<GameMap>();
+                        map.SetupMap();
+                        minimap = new Minimap(map);
+                        minimap.UpdateMap();
+                        minimap.UpdateAreas();
+                    }
+                    else
+                    {
+                        minimap.UpdateMap();
+                    }
+                }
             }
         }
 
